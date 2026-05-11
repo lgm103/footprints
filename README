@@ -1,0 +1,71 @@
+# HelpUsDefend: Asynchronous Malware Scanning Pipeline
+
+A high-performance, Kubernetes-native malware scanning infrastructure designed to process high-volume file uploads without impacting user-facing latency. This system utilizes a decoupled architecture to ensure resilience, horizontal scalability, and "at-least-once" delivery.
+
+## Architecture Overview
+
+The system operates on an event-driven, asynchronous model:
+
+1. Ingress: Files are uploaded to a MinIO S3 bucket.
+2. Notification: MinIO fires an ObjectCreated event to a Flask Webhook API.
+3. Queueing: The Webhook pushes the task metadata into a Redis message broker.
+4. Processing: Scanner-Worker pods are constantly watching Redis. As soon as a ticket appears, a worker "checks it out."
+5. Verdict: The worker downloads the file from MinIO to a local /tmp folder and streams it to the ClamAV container.
+6. Resolution: Malicious files are moved to a quarantined bucket, while clean files remain in the source bucket (or are tagged).
+
+## Performance Benchmarks
+Based on stress testing with 500 concurrent image uploads (~5MB avg), the system achieved a throughput of ~9.1 files per second on a baseline 2-worker configuration.
+
+### Capacity Tiers
+- Tier 1: Baseline | 9.1 files/sec | 2 Units | 3.6 Cores | 5.75 GB RAM
+- Tier 2: Production | 45.4 files/sec | 10 Units | 15.6 Cores | 25.75 GB RAM
+- Tier 3: Surge | 136.2 files/sec | 30 Units | 45.6 Cores | 75.75 GB RAM
+
+## Project Structure
+.
+├── k8s/
+│   ├── infra/          # Core services (MinIO, Redis, ClamAV)
+│   ├── app/            # Scanning logic (Webhook, Worker, HPA)
+│   └── storage/        # Persistent Volumes & Claims
+├── src/
+│   ├── webhook/        # Flask API (Event receiver)
+│   └── worker/         # Celery tasks (Scanner logic)
+├── Dockerfile          # Multi-stage build for Webhook and Worker
+└── requirements.txt    # Python dependencies
+
+## Deployment Instructions
+
+### 1. Infrastructure Setup
+Deploy the storage, broker, and AV engine:
+$kubectl apply -f k8s/storage/$ kubectl apply -f k8s/infra/
+
+### 2. Secret Configuration
+This project uses a Kubernetes Secret for MinIO credentials. Create this manually before deploying the app layer:
+$ kubectl create secret generic minio-creds \
+  --from-literal=MINIO_ROOT_USER=admin \
+  --from-literal=MINIO_ROOT_PASSWORD=your-secure-password
+
+### 3. Application Deployment
+Deploy the API, Workers, and the Autoscaler:
+$ kubectl apply -f k8s/app/
+
+### 4. Connect MinIO Events
+Configure MinIO to talk to the Webhook API:
+- Set alias for mc: mc alias set local http://<minio-ip>:9000 admin your-secure-password
+- Add webhook target: mc admin config set local notify_webhook:primary endpoint="http://webhook.default.svc.cluster.local:5000" queue_limit="1000"
+- Restart MinIO and add event trigger:
+  $ mc admin service restart local
+  $ mc event add local/uploads arn:minio:sqs::primary:webhook --event put
+
+## Configuration (Environment Variables)
+The following variables can be adjusted in the Kubernetes manifests:
+- MINIO_ENDPOINT: Internal K8s service address (minio:9000).
+- CLAMD_CONF_MaxThreads: Max concurrent scans per ClamAV instance (default: 50).
+- worker_prefetch_multiplier: Set to 1 for heavy scanning to prevent task hoarding.
+
+## Key Design Features
+- Zero-Loss Ingress: Even if scanning pods crash, the Redis queue persists the tasks to the disk (AOF enabled).
+- Auto-Scaling: The HorizontalPodAutoscaler (HPA) monitors CPU pressure on workers and scales replicas dynamically.
+- Fault Isolation: ClamAV's heavy RAM footprint is isolated in its own container to prevent OOM errors from affecting the API or Storage layers.
+
+Note: This system is configured for a 50MB file size cap at the Ingress level to ensure stability under heavy concurrent load. For larger files, adjust the resource limits in k8s/app/worker.yaml.

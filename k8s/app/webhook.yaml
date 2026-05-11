@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webhook
+spec:
+  replicas: 3  # Increased to 3 to handle concurrent event bursts
+  selector:
+    matchLabels:
+      app: webhook
+  template:
+    metadata:
+      labels:
+        app: webhook
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: worker
+      containers:
+      - name: webhook
+        image: scanner-app:latest
+        imagePullPolicy: IfNotPresent
+        #increase GUNICORN BACKLOG
+        command: ["gunicorn", "--worker-class", "gevent", "--workers", "4", "--threads", "4", "--backlog", "2048", "--bind", "0.0.0.0:5000", "webhook:app"]
+        ports:
+        - containerPort: 5000
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: MINIO_ENDPOINT
+          value: minio:9000
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-creds
+              key: MINIO_ROOT_USER
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-creds
+              key: MINIO_ROOT_PASSWORD
+        # Move the resources block here, inside the container definition
+        resources:
+          requests:
+            cpu: "300m"
+            memory: "256Mi"
+          limits:
+            cpu: "600m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webhook
+spec:
+  selector:
+    app: webhook
+  ports:
+    - port: 5000
+      targetPort: 5000

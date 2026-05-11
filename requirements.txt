@@ -1,0 +1,12 @@
+# Web API & Server
+Flask==3.0.2
+gunicorn==21.2.0
+gevent==24.2.1
+
+# Task Queue & Broker
+celery==5.3.6
+redis==5.0.1
+
+# Storage & Utilities
+minio==7.2.5
+python-dotenv==1.0.1

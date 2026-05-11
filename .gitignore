@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+.env
+
+# Infrastructure
+*.tar
+*.log
+
+# Secrets 
+k8s/secrets/*.yaml
+.secrets/

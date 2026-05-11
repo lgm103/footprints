@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scanner-worker
+spec:
+  replicas: 2  # We can scale this up easily under load
+  selector:
+    matchLabels:
+      app: scanner-worker
+  template:
+    metadata:
+      labels:
+        app: scanner-worker
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: worker
+      containers:
+      - name: worker
+        image: scanner-app:latest
+        imagePullPolicy: IfNotPresent
+        command: ["celery", "-A", "worker.worker", "worker", "--loglevel=info", "--prefetch-multiplier=1"]
+        resources:
+          requests:
+            cpu: "200m" #baseline .2 cores
+            memory: "256Mi"
+          limits:
+            cpu: "500m" #max .5 cores
+            memory: "512Mi"
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: MINIO_ENDPOINT
+          value: minio:9000
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-creds
+              key: MINIO_ROOT_USER
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: minio-creds
+              key: MINIO_ROOT_PASSWORD

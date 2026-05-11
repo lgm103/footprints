@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clamav
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clamav
+  template:
+    metadata:
+      labels:
+        app: clamav
+    spec:
+      containers:
+      - name: clamav
+        image: clamav/clamav:latest
+        env:
+        - name: CLAMD_CONF_MaxThreads
+          value: "50"
+        - name: CLAMD_CONF_ReadTimeout
+          value: "30"
+        ports:
+        - containerPort: 3310
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+        volumeMounts:
+        - name: clamdb
+          mountPath: /var/lib/clamav
+      volumes:
+      - name: clamdb
+        persistentVolumeClaim:
+          claimName: clamav-db-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clamav
+spec:
+  selector:
+    app: clamav
+  ports:
+    - port: 3310
+      targetPort: 3310
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clamav-db-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: manual
+  resources:
+    requests:
+      storage: 2Gi
