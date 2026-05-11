@@ -14,7 +14,7 @@ The system operates on an event-driven, asynchronous model:
 6. Resolution: Malicious files are moved to a quarantined bucket, while clean files remain in the source bucket (or are tagged).
 
 ## Performance Benchmarks
-Based on stress testing with 500 concurrent image uploads (~5MB avg), the system achieved a throughput of ~9.1 files per second on a baseline 2-worker configuration.
+Based on stress testing with 500 concurrent image uploads (~1MB avg), the system achieved a throughput of ~9.1 files per second on a baseline 2-worker configuration.1
 
 ### Capacity Tiers
 - Tier 1: Baseline | 9.1 files/sec | 2 Units | 3.6 Cores | 5.75 GB RAM
@@ -55,7 +55,8 @@ Configure MinIO to talk to the Webhook API:
 - Add webhook target: mc admin config set local notify_webhook:primary endpoint="http://webhook.default.svc.cluster.local:5000" queue_limit="1000"
 - Restart MinIO and add event trigger:
   $ mc admin service restart local
-  $ mc event add local/uploads arn:minio:sqs::primary:webhook --event put
+  $ mc event add local/imagebucket arn:minio:sqs::primary:webhook --event put
+  $ mc event add local/ds-image-reports arn:minio:sqs::primary:webhook -- event put
 
 ## Configuration (Environment Variables)
 The following variables can be adjusted in the Kubernetes manifests:
