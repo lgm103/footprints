@@ -28,8 +28,8 @@ Based on stress testing with 500 concurrent image uploads (~1MB avg), the system
 │   ├── app/            # Scanning logic (Webhook, Worker, HPA)
 │   └── storage/        # Persistent Volumes & Claims
 ├── src/
-│   ├── webhook/        # Flask API (Event receiver)
-│   └── worker/         # Celery tasks (Scanner logic)
+│   ├── webhook.py        # Flask API (Event receiver)
+│   └── worker.py         # Celery tasks (Scanner logic)
 ├── Dockerfile          # Multi-stage build for Webhook and Worker
 └── requirements.txt    # Python dependencies
 
