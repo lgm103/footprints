@@ -10,7 +10,7 @@ def handle():
         if not event or "Records" not in event:
             return "OK", 200 # Return 200 even for pings to keep MinIO happy
 
-	for record in event["Records"]
+	    for record in event["Records"]:
             bucket = record["s3"]["bucket"]["name"]
             key = record["s3"]["object"]["key"]
 
